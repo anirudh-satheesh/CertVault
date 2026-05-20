@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  
+  --color-bg-primary: #f5f5f5;
+  --color-bg-secondary: #ebebeb;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f3f3f3;
+
+  --color-text-primary: #111111;
+  --color-text-secondary: #525252;
+  --color-text-muted: #7a7a7a;
+
+  --color-border-color: #d4d4d4;
+
+  --color-sidebar: #1a1a1a;
+  --color-sidebar-text: #f5f5f5;
+
+  --color-accent: #2d2d2d;
+  --color-accent-hover: #3b3b3b;
+}
+
+:root {
+  /* Let's export standard CSS variables as well for non-Tailwind styled elements */
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #ebebeb;
+  --surface: #ffffff;
+  --surface-hover: #f3f3f3;
+  --text-primary: #111111;
+  --text-secondary: #525252;
+  --text-muted: #7a7a7a;
+  --border: #d4d4d4;
+  --sidebar: #1a1a1a;
+  --sidebar-text: #f5f5f5;
+  --accent: #2d2d2d;
+  --accent-hover: #3b3b3b;
+
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar styling - Apple / Notion style */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Custom smooth transition classes */
+.transition-all-custom {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
