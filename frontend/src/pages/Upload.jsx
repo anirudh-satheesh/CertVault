@@ -21,14 +21,28 @@ import { Dropdown } from '../components/common/Dropdown';
 import { Card } from '../components/common/Card';
 import { SectionHeader } from '../components/common/SectionHeader';
 import { Badge } from '../components/common/Badge';
-import { 
-  getFileExtension, 
-  isImageFile, 
-  isPDFFile, 
-  formatFileSize, 
-  getFileIcon, 
-  getFileCategory 
+import {
+  getFileExtension,
+  isImageFile,
+  isPDFFile,
+  formatFileSize,
+  getFileIcon,
+  getFileCategory
 } from '../utils/fileUtils';
+
+// Export validation constants and function for reuse
+export const allowedFileTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+export const maxFileSizeMB = 10;
+
+export const validateFile = (file) => {
+  if (!allowedFileTypes.includes(file.type)) {
+    return { valid: false, error: 'Unsupported file type. PDF or PNG/JPEG only.' };
+  }
+  if (file.size > maxFileSizeMB * 1024 * 1024) {
+    return { valid: false, error: `File exceeds ${maxFileSizeMB} MB limit.` };
+  }
+  return { valid: true };
+};
 
 export const Upload = () => {
   const navigate = useNavigate();
@@ -149,14 +163,9 @@ export const Upload = () => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
       // Validation: type and size (same as drop handler)
-      const allowedTypes = ["application/pdf", "image/png", "image/jpeg"];
-      const maxSizeMB = 10;
-      if (!allowedTypes.includes(selectedFile.type)) {
-        setFormErrors(prev => ({ ...prev, file: "Unsupported file type. PDF or PNG/JPEG only." }));
-        return;
-      }
-      if (selectedFile.size > maxSizeMB * 1024 * 1024) {
-        setFormErrors(prev => ({ ...prev, file: `File exceeds ${maxSizeMB} MB limit.` }));
+      const validation = validateFile(selectedFile);
+      if (!validation.valid) {
+        setFormErrors(prev => ({ ...prev, file: validation.error }));
         return;
       }
       setFile({

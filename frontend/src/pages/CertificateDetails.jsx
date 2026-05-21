@@ -27,13 +27,14 @@ import { Input } from '../components/common/Input';
 import { Dropdown } from '../components/common/Dropdown';
 import { SkeletonLoader } from '../components/common/SkeletonLoader';
 import { SectionHeader } from '../components/common/SectionHeader';
-import { 
-  getPBFileUrl, 
-  isImageFile, 
-  isPDFFile, 
-  getFileIcon, 
-  getFileCategory 
+import {
+  getPBFileUrl,
+  isImageFile,
+  isPDFFile,
+  getFileIcon,
+  getFileCategory
 } from '../utils/fileUtils';
+import { validateFile, allowedFileTypes } from './Upload';
 
 export const CertificateDetails = () => {
   const { id } = useParams();
@@ -127,6 +128,14 @@ export const CertificateDetails = () => {
   const handleReplaceFile = async (e) => {
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
+
+    // Validate file before uploading
+    const validation = validateFile(selectedFile);
+    if (!validation.valid) {
+      alert(validation.error);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
 
     setIsReplacing(true);
     const formData = new FormData();
@@ -313,30 +322,33 @@ export const CertificateDetails = () => {
                 </div>
               )}
               
-              {certificate.document ? (
-                isImageFile('', certificate.document) ? (
-                  <img 
-                    src={getPBFileUrl(certificate, certificate.document)} 
-                    alt={certificate.title} 
+              {certificate.document ? (() => {
+                const normalizedDoc = Array.isArray(certificate.document)
+                  ? certificate.document[0]?.name || certificate.document[0]
+                  : certificate.document;
+                return isImageFile('', normalizedDoc) ? (
+                  <img
+                    src={getPBFileUrl(certificate, normalizedDoc)}
+                    alt={certificate.title}
                     loading="lazy"
                     className="w-full h-full object-contain p-2"
                   />
-                ) : isPDFFile('', certificate.document) ? (
+                ) : isPDFFile('', normalizedDoc) ? (
                   <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
                     <FileText size={48} className="text-neutral-400 mb-4 drop-shadow-sm" />
-                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{certificate.document}</span>
+                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{normalizedDoc}</span>
                     <span className="text-[10px] text-text-muted mt-2 font-medium bg-surface px-2 py-1 border border-border-color rounded-md shadow-sm">PDF Document</span>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
-                    {React.createElement(getFileIcon(certificate.document), { size: 48, className: 'text-neutral-400 mb-4 drop-shadow-sm' })}
-                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{certificate.document}</span>
+                    {React.createElement(getFileIcon(normalizedDoc), { size: 48, className: 'text-neutral-400 mb-4 drop-shadow-sm' })}
+                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{normalizedDoc}</span>
                     <span className="text-[10px] text-text-muted mt-2 font-medium bg-surface px-2 py-1 border border-border-color rounded-md shadow-sm">
-                      {getFileCategory(certificate.document)}
+                      {getFileCategory(normalizedDoc)}
                     </span>
                   </div>
-                )
-              ) : (
+                );
+              })() : (
                 <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
                   <FileText size={48} className="text-neutral-300 mb-4" />
                   <span className="text-sm font-semibold text-text-muted uppercase tracking-wider">No Document Uploaded</span>
@@ -350,10 +362,11 @@ export const CertificateDetails = () => {
                 File handling tools
               </span>
               <div className="flex items-center gap-1.5 shrink-0">
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  ref={fileInputRef} 
+                <input
+                  type="file"
+                  className="hidden"
+                  ref={fileInputRef}
+                  accept=".pdf,.png,.jpg,.jpeg"
                   onChange={handleReplaceFile}
                 />
                 <Button 
@@ -365,22 +378,27 @@ export const CertificateDetails = () => {
                 >
                   Replace
                 </Button>
-                {certificate.document && (
-                  <a 
-                    href={getPBFileUrl(certificate, certificate.document)} 
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Button 
-                      variant="secondary" 
-                      size="sm"
-                      icon={<Printer size={12} />} // Download/View
+                {certificate.document && (() => {
+                  const normalizedDoc = Array.isArray(certificate.document)
+                    ? certificate.document[0]?.name || certificate.document[0]
+                    : certificate.document;
+                  return (
+                    <a
+                      href={getPBFileUrl(certificate, normalizedDoc)}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
                     >
-                      View / Download
-                    </Button>
-                  </a>
-                )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        icon={<Printer size={12} />}
+                      >
+                        View / Download
+                      </Button>
+                    </a>
+                  );
+                })()}
               </div>
             </div>
           </div>

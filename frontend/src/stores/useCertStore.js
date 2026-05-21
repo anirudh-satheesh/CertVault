@@ -1,10 +1,22 @@
 import { create } from 'zustand';
-import { 
-  getCertificates, 
-  createCertificate, 
-  updateCertificate as pbUpdateCertificate, 
-  deleteCertificate as pbDeleteCertificate 
+import {
+  getCertificates,
+  createCertificate,
+  updateCertificate as pbUpdateCertificate,
+  deleteCertificate as pbDeleteCertificate
 } from '../services/certificateService';
+
+// Safe JSON parser that always returns an array
+const safeParseArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
 
 export const useCertStore = create((set, get) => ({
   certificates: [],
@@ -38,6 +50,21 @@ export const useCertStore = create((set, get) => ({
   updateCertificate: async (id, updatedFields) => {
     set({ isLoading: true, error: null });
     try {
+      // Handle _orig_cat tag consistency when category changes
+      const cert = get().certificates.find(c => c.id === id);
+      if (cert && updatedFields.category && updatedFields.category !== cert.category) {
+        const currentTags = safeParseArray(updatedFields.tags !== undefined ? updatedFields.tags : cert.tags);
+
+        if (updatedFields.category === 'Archive' && cert.category !== 'Archive') {
+          // Moving to Archive: save original category
+          const tagsWithoutOrigCat = currentTags.filter(t => !t.startsWith('_orig_cat:'));
+          updatedFields.tags = JSON.stringify([...tagsWithoutOrigCat, `_orig_cat:${cert.category}`]);
+        } else if (cert.category === 'Archive' && updatedFields.category !== 'Archive') {
+          // Moving out of Archive: remove _orig_cat tag
+          updatedFields.tags = JSON.stringify(currentTags.filter(t => !t.startsWith('_orig_cat:')));
+        }
+      }
+
       const updated = await pbUpdateCertificate(id, updatedFields);
       set((state) => ({
         certificates: state.certificates.map((cert) =>
@@ -75,9 +102,7 @@ export const useCertStore = create((set, get) => ({
       
       const isCurrentlyArchived = cert.category === 'Archive';
       let nextCategory = 'Archive';
-      let nextTags = Array.isArray(cert.tags) 
-        ? [...cert.tags] 
-        : JSON.parse(cert.tags || '[]');
+      let nextTags = safeParseArray(cert.tags);
       
       if (isCurrentlyArchived) {
         // Restore: find original category in tags
@@ -183,14 +208,10 @@ export const useCertStore = create((set, get) => ({
       if (!query) return true;
 
       // Extract skills / tags
-      const rawTags = Array.isArray(cert.tags) 
-        ? cert.tags 
-        : JSON.parse(cert.tags || '[]');
+      const rawTags = safeParseArray(cert.tags);
       const tags = rawTags.filter(t => !t.startsWith('_orig_cat:'));
 
-      const skills = Array.isArray(cert.skills) 
-        ? cert.skills 
-        : JSON.parse(cert.skills || '[]');
+      const skills = safeParseArray(cert.skills);
 
       return (
         cert.title.toLowerCase().includes(query) ||

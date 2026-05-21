@@ -12,7 +12,7 @@ export const getCertificates = async (options = {}) => {
       ...options
     });
     // Debug: log fetched certificates summary in dev
-    if (process.env.NODE_ENV !== 'production') {
+    if (import.meta.env.DEV) {
       try { console.debug('getCertificates -> fetched count', list.length, list.slice(0,3).map(l=>({id:l.id, thumbnail:l.thumbnail, document:l.document}))); } catch(e){}
     }
     return list;

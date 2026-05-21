@@ -34,8 +34,13 @@ export const CertificateCard = ({
     return docFile ? getPBFileUrl(certificate, docFile) : null;
   }, [certificate]);
 
-  const isPdf = certificate.document && isPDFFile('', certificate.document);
-  const isImage = certificate.document && isImageFile('', certificate.document);
+  const docFile = certificate.document
+    ? Array.isArray(certificate.document)
+      ? certificate.document[0]
+      : certificate.document
+    : null;
+  const isPdf = docFile && isPDFFile('', docFile);
+  const isImage = docFile && isImageFile('', docFile);
   const parsedTags = (Array.isArray(tags)
     ? tags
     : JSON.parse(tags || '[]')).filter((t) => !t.startsWith('_orig_cat:'));
