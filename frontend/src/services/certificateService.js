@@ -7,10 +7,15 @@ import pb from '../lib/pocketbase';
  */
 export const getCertificates = async (options = {}) => {
     try {
-        return await pb.collection('certificates').getFullList({
-            sort: '-created',
-            ...options
-        });
+    const list = await pb.collection('certificates').getFullList({
+      sort: '-created',
+      ...options
+    });
+    // Debug: log fetched certificates summary in dev
+    if (process.env.NODE_ENV !== 'production') {
+      try { console.debug('getCertificates -> fetched count', list.length, list.slice(0,3).map(l=>({id:l.id, thumbnail:l.thumbnail, document:l.document}))); } catch(e){}
+    }
+    return list;
     } catch (error) {
         console.error('Failed to fetch certificates:', error);
         throw error;
@@ -35,9 +40,10 @@ export const getCertificate = async (id) => {
  * Create a new certificate record.
  * Handles file attachments automatically if data is passed as FormData.
  * @param {object|FormData} data Certificate metadata and file payload.
+ * @param {object} options Optional PocketBase request options (e.g. signal for cancellation)
  * @returns {Promise<object>} Created certificate record.
  */
-export const createCertificate = async (data) => {
+export const createCertificate = async (data, options = {}) => {
   console.log('Creating certificate...', data);
   try {
     const owner = pb.authStore.model;
@@ -52,7 +58,7 @@ export const createCertificate = async (data) => {
         owner: owner ? owner.id : undefined
       };
     }
-    return await pb.collection('certificates').create(payload);
+    return await pb.collection('certificates').create(payload, options);
   } catch (error) {
     console.error('Failed to create certificate:', error);
     throw error;

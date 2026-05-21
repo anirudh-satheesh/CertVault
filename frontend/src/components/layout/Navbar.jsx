@@ -1,8 +1,7 @@
 import React from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
-import { Menu, Bell, Shield, LogOut, ChevronRight } from 'lucide-react';
+import { Menu, Shield, ChevronRight } from 'lucide-react';
 import { useCertStore } from '../../stores/useCertStore';
-import { useAuthStore } from '../../stores/authStore';
 
 export const Navbar = ({ onMenuOpen }) => {
   const location = useLocation();
@@ -36,12 +35,7 @@ export const Navbar = ({ onMenuOpen }) => {
     return items;
   };
 
-  const { logout } = useAuthStore();
 
-  const handleSignOut = () => {
-    logout();
-    navigate('/login');
-  };
 
   const breadcrumbs = getBreadcrumbs();
 
@@ -88,21 +82,9 @@ export const Navbar = ({ onMenuOpen }) => {
           <span>AES-256 SECURED</span>
         </div>
 
-        <button 
-          className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-bg-primary transition-colors relative"
-          title="Notifications"
-        >
-          <Bell size={16} />
-          <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-neutral-900 rounded-full" />
-        </button>
 
-        <button
-          onClick={handleSignOut}
-          title="Sign Out"
-          className="p-1.5 text-text-muted hover:text-text-primary rounded-lg hover:bg-bg-primary transition-colors inline-flex items-center cursor-pointer border-none bg-transparent"
-        >
-          <LogOut size={16} />
-        </button>
+
+
       </div>
     </header>
   );

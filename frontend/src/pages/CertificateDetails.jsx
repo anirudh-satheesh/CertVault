@@ -12,10 +12,11 @@ import {
   FileText,
   Clock,
   Printer,
-  Share2,
   Copy,
   Check,
-  Award
+  Award,
+  RefreshCcw,
+  Share2
 } from 'lucide-react';
 import { useCertStore } from '../stores/useCertStore';
 import { Card } from '../components/common/Card';
@@ -25,6 +26,14 @@ import { Modal } from '../components/common/Modal';
 import { Input } from '../components/common/Input';
 import { Dropdown } from '../components/common/Dropdown';
 import { SkeletonLoader } from '../components/common/SkeletonLoader';
+import { SectionHeader } from '../components/common/SectionHeader';
+import { 
+  getPBFileUrl, 
+  isImageFile, 
+  isPDFFile, 
+  getFileIcon, 
+  getFileCategory 
+} from '../utils/fileUtils';
 
 export const CertificateDetails = () => {
   const { id } = useParams();
@@ -110,6 +119,32 @@ export const CertificateDetails = () => {
       }
     }
   }, [certificate, searchParams]);
+
+  // File Upload / Replace State
+  const fileInputRef = React.useRef(null);
+  const [isReplacing, setIsReplacing] = useState(false);
+
+  const handleReplaceFile = async (e) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    setIsReplacing(true);
+    const formData = new FormData();
+    formData.append('document', selectedFile);
+
+    try {
+      await updateCertificate(certificate.id, formData);
+      // Wait a moment, fetch latest to update the view
+      await fetchCertificates();
+    } catch (err) {
+      console.error('Failed to replace file:', err);
+      alert('Failed to replace file.');
+    } finally {
+      setIsReplacing(false);
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   if (!certificate && !isLoading) {
     return (
@@ -269,123 +304,83 @@ export const CertificateDetails = () => {
               Digital Document Preview
             </span>
 
-            {/* Virtual Document Render (CSS Designed Certificate) */}
-            <div className="w-full aspect-[16/11] bg-white border border-neutral-300 shadow-lg rounded-xl relative p-8 md:p-12 overflow-hidden flex flex-col justify-between select-none">
-              {/* Ornamental Frame Lines */}
-              <div className="absolute inset-4 border border-neutral-200 pointer-events-none" />
-              <div className="absolute inset-5 border-2 border-neutral-300 pointer-events-none" />
+            {/* Real File Preview Area */}
+            <div className="w-full aspect-[4/3] sm:aspect-[16/11] bg-surface-hover border border-border-color shadow-sm rounded-xl relative overflow-hidden flex flex-col items-center justify-center select-none group">
+              {isReplacing && (
+                <div className="absolute inset-0 bg-surface/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center">
+                  <RefreshCcw size={24} className="animate-spin text-text-primary mb-3" />
+                  <span className="text-xs font-semibold uppercase tracking-wider">Replacing Document...</span>
+                </div>
+              )}
               
-              {/* Ornamental Corner Decor */}
-              <div className="absolute top-6 left-6 h-6 w-6 border-t-2 border-l-2 border-neutral-500 pointer-events-none" />
-              <div className="absolute top-6 right-6 h-6 w-6 border-t-2 border-r-2 border-neutral-500 pointer-events-none" />
-              <div className="absolute bottom-6 left-6 h-6 w-6 border-b-2 border-l-2 border-neutral-500 pointer-events-none" />
-              <div className="absolute bottom-6 right-6 h-6 w-6 border-b-2 border-r-2 border-neutral-500 pointer-events-none" />
-
-              {/* Watermark (Large background CV initials) */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-neutral-100 font-extrabold text-[120px] md:text-[180px] pointer-events-none z-0 tracking-widest opacity-40 font-sans">
-                VAULT
-              </div>
-
-              {/* Document Header */}
-              <div className="flex justify-between items-start z-10">
-                <div className="flex items-center gap-2">
-                  <div className={`h-10 w-10 ${certificate.thumbnailColor || 'bg-neutral-900 text-neutral-100'} rounded-lg flex items-center justify-center font-bold text-xs shadow-sm`}>
-                    {getInitials(certificate.issuer)}
+              {certificate.document ? (
+                isImageFile('', certificate.document) ? (
+                  <img 
+                    src={getPBFileUrl(certificate, certificate.document)} 
+                    alt={certificate.title} 
+                    loading="lazy"
+                    className="w-full h-full object-contain p-2"
+                  />
+                ) : isPDFFile('', certificate.document) ? (
+                  <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
+                    <FileText size={48} className="text-neutral-400 mb-4 drop-shadow-sm" />
+                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{certificate.document}</span>
+                    <span className="text-[10px] text-text-muted mt-2 font-medium bg-surface px-2 py-1 border border-border-color rounded-md shadow-sm">PDF Document</span>
                   </div>
-                  <div className="text-left">
-                    <span className="text-[9px] uppercase font-bold tracking-widest text-neutral-500">VERIFIED CREDENTIAL</span>
-                    <h4 className="text-[10px] font-bold uppercase tracking-wider text-neutral-800 line-clamp-1">{certificate.issuer}</h4>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <div className="inline-flex items-center gap-1 bg-neutral-900 text-white text-[8px] font-bold uppercase tracking-widest px-2 py-0.5 rounded shadow-sm border border-neutral-800">
-                    <ShieldCheck size={8} />
-                    <span>AES-SECURED</span>
-                  </div>
-                  {certificate.credentialId && (
-                    <p className="text-[8px] font-mono text-neutral-500 mt-1 block uppercase tracking-wider">
-                      REF: {certificate.credentialId}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Document Title / Achievement core */}
-              <div className="my-auto py-4 text-center z-10 flex flex-col items-center gap-2 md:gap-3">
-                <span className="text-[9px] md:text-[10px] font-medium tracking-[0.25em] uppercase text-neutral-400">
-                  THIS CERTIFIES AND OFFICIALLY RECOGNIZES THAT
-                </span>
-                
-                {/* Holder Name */}
-                <h3 className="text-lg md:text-xl font-bold text-neutral-900 tracking-wide underline decoration-neutral-300 underline-offset-4">
-                  Anirudh Dev
-                </h3>
-
-                <span className="text-[8px] md:text-[9px] font-medium tracking-[0.2em] text-neutral-400 uppercase">
-                  HAS SUCCESSFULLY DEMONSTRATED PROFICIENCY AND MET REQUIREMENTS FOR
-                </span>
-
-                {/* Certificate Title */}
-                <h2 className="text-sm md:text-base font-bold text-neutral-900 px-6 max-w-lg uppercase tracking-wide leading-tight">
-                  {certificate.title}
-                </h2>
-              </div>
-
-              {/* Document Footer (Signatures & Verification Code) */}
-              <div className="flex justify-between items-end border-t border-neutral-100 pt-4 z-10">
-                <div className="text-left">
-                  <span className="text-[8px] uppercase tracking-wider text-neutral-400 font-semibold block">DATE OF ISSUE</span>
-                  <span className="text-[9px] font-bold text-neutral-800 uppercase font-mono">{certificate.issueDate}</span>
-                  {certificate.expiryDate && (
-                    <span className="text-[8px] text-neutral-400 block mt-0.5 uppercase tracking-wide">
-                      Expires: <span className="font-mono font-bold text-neutral-700">{certificate.expiryDate}</span>
+                ) : (
+                  <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
+                    {React.createElement(getFileIcon(certificate.document), { size: 48, className: 'text-neutral-400 mb-4 drop-shadow-sm' })}
+                    <span className="text-sm font-semibold text-text-primary uppercase tracking-wider">{certificate.document}</span>
+                    <span className="text-[10px] text-text-muted mt-2 font-medium bg-surface px-2 py-1 border border-border-color rounded-md shadow-sm">
+                      {getFileCategory(certificate.document)}
                     </span>
-                  )}
-                </div>
-
-                {/* Cryptographic QR/Seal representation */}
-                <div className="flex flex-col items-center justify-center">
-                  <div className="h-10 w-10 border border-neutral-300 rounded p-0.5 flex flex-col justify-between items-center bg-white shadow-inner">
-                    {/* Mock matrix code (Notion style barcode block) */}
-                    <div className="grid grid-cols-4 gap-0.5 w-full h-full">
-                      {Array.from({ length: 16 }).map((_, i) => (
-                        <div 
-                          key={i} 
-                          className={`rounded-[1px] ${
-                            (i * 3 + 1) % 4 === 0 || i % 3 === 0 
-                              ? 'bg-neutral-800' 
-                              : 'bg-neutral-100'
-                          }`} 
-                        />
-                      ))}
-                    </div>
                   </div>
-                  <span className="text-[7px] text-neutral-400 font-mono mt-1 tracking-widest font-semibold uppercase">CRYPT-STAMP</span>
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center w-full h-full p-8 text-center bg-bg-secondary">
+                  <FileText size={48} className="text-neutral-300 mb-4" />
+                  <span className="text-sm font-semibold text-text-muted uppercase tracking-wider">No Document Uploaded</span>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-[8px] uppercase tracking-wider text-neutral-400 font-semibold block">VAULT SIGNATURE</span>
-                  <span className="text-[10px] font-serif italic text-neutral-800 tracking-wider block">CertVault Verified</span>
-                  <div className="h-0.5 w-24 bg-neutral-300 mt-1" />
-                </div>
-              </div>
+              )}
             </div>
 
             {/* Toolbar under preview */}
             <div className="flex items-center gap-3 bg-surface border border-border-color/60 rounded-xl p-3 justify-between">
-              <span className="text-[10px] font-medium text-text-secondary">
-                Standard document render frame. Ready for print.
+              <span className="text-[10px] font-medium text-text-secondary truncate">
+                File handling tools
               </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input 
+                  type="file" 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handleReplaceFile}
+                />
                 <Button 
                   variant="ghost" 
                   size="sm"
-                  onClick={() => window.print()}
-                  icon={<Printer size={12} />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isReplacing}
+                  icon={<RefreshCcw size={12} />}
                 >
-                  Print PDF
+                  Replace
                 </Button>
+                {certificate.document && (
+                  <a 
+                    href={getPBFileUrl(certificate, certificate.document)} 
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Button 
+                      variant="secondary" 
+                      size="sm"
+                      icon={<Printer size={12} />} // Download/View
+                    >
+                      View / Download
+                    </Button>
+                  </a>
+                )}
               </div>
             </div>
           </div>

@@ -21,6 +21,14 @@ import { Dropdown } from '../components/common/Dropdown';
 import { Card } from '../components/common/Card';
 import { SectionHeader } from '../components/common/SectionHeader';
 import { Badge } from '../components/common/Badge';
+import { 
+  getFileExtension, 
+  isImageFile, 
+  isPDFFile, 
+  formatFileSize, 
+  getFileIcon, 
+  getFileCategory 
+} from '../utils/fileUtils';
 
 export const Upload = () => {
   const navigate = useNavigate();
@@ -29,18 +37,28 @@ export const Upload = () => {
   // File Upload State
   const [dragActive, setDragActive] = useState(false);
   const [file, setFile] = useState(null); // holds File object
+  const [thumbnail, setThumbnail] = useState(null); // user-provided thumbnail image
   const [previewUrl, setPreviewUrl] = useState(null);
-  // Cleanup preview URL on unmount or when changed
+  const [thumbnailPreviewUrl, setThumbnailPreviewUrl] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadComplete, setUploadComplete] = useState(false);
+  const abortControllerRef = useRef(null);
+
+  // Cleanup preview URL and abort pending requests on unmount
   useEffect(() => {
     return () => {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
       }
+      if (thumbnailPreviewUrl) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
-  }, [previewUrl]);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadComplete, setUploadComplete] = useState(false);
+  }, [previewUrl, thumbnailPreviewUrl]);
 
   // Form State
   const [title, setTitle] = useState('');
@@ -63,6 +81,7 @@ export const Upload = () => {
     { value: 'Certifications', label: 'Certifications' },
     { value: 'Awards', label: 'Awards' },
     { value: 'Internships', label: 'Internships' },
+    { value: 'Licenses', label: 'Licenses' },
     { value: 'Archive', label: 'Archive' }
   ];
 
@@ -118,7 +137,8 @@ export const Upload = () => {
         setFile({
           file: droppedFile,
           name: droppedFile.name,
-          size: (droppedFile.size / (1024 * 1024)).toFixed(2) + ' MB'
+          size: formatFileSize(droppedFile.size),
+          type: droppedFile.type
         });
         setPreviewUrl(URL.createObjectURL(droppedFile));
         simulateUpload(droppedFile.name);
@@ -126,28 +146,62 @@ export const Upload = () => {
   };
 
   const handleFileSelect = (e) => {
-  if (e.target.files && e.target.files[0]) {
-    const selectedFile = e.target.files[0];
-    // Validation: type and size (same as drop handler)
-    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg'];
-    const maxSizeMB = 10;
-    if (!allowedTypes.includes(selectedFile.type)) {
-      setFormErrors(prev => ({ ...prev, file: 'Unsupported file type. PDF or PNG/JPEG only.' }));
-      return;
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0];
+      // Validation: type and size (same as drop handler)
+      const allowedTypes = ["application/pdf", "image/png", "image/jpeg"];
+      const maxSizeMB = 10;
+      if (!allowedTypes.includes(selectedFile.type)) {
+        setFormErrors(prev => ({ ...prev, file: "Unsupported file type. PDF or PNG/JPEG only." }));
+        return;
+      }
+      if (selectedFile.size > maxSizeMB * 1024 * 1024) {
+        setFormErrors(prev => ({ ...prev, file: `File exceeds ${maxSizeMB} MB limit.` }));
+        return;
+      }
+      setFile({
+        file: selectedFile,
+        name: selectedFile.name,
+        size: formatFileSize(selectedFile.size),
+        type: selectedFile.type
+      });
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+      if (thumbnailPreviewUrl) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+        setThumbnail(null);
+        setThumbnailPreviewUrl(null);
+      }
+      simulateUpload(selectedFile.name);
     }
-    if (selectedFile.size > maxSizeMB * 1024 * 1024) {
-      setFormErrors(prev => ({ ...prev, file: `File exceeds ${maxSizeMB}\u202fMB limit.` }));
-      return;
+  };
+
+  const handleThumbnailSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedThumb = e.target.files[0];
+      const allowedTypes = ["image/png", "image/jpeg", "image/webp"];
+      const maxSizeMB = 5;
+      if (!allowedTypes.includes(selectedThumb.type)) {
+        setFormErrors(prev => ({ ...prev, thumbnail: "Thumbnail must be PNG, JPEG, or WEBP." }));
+        return;
+      }
+      if (selectedThumb.size > maxSizeMB * 1024 * 1024) {
+        setFormErrors(prev => ({ ...prev, thumbnail: `Thumbnail exceeds ${maxSizeMB} MB limit.` }));
+        return;
+      }
+      setThumbnail({
+        file: selectedThumb,
+        name: selectedThumb.name,
+        size: formatFileSize(selectedThumb.size),
+        type: selectedThumb.type
+      });
+      if (thumbnailPreviewUrl) {
+        URL.revokeObjectURL(thumbnailPreviewUrl);
+      }
+      setThumbnailPreviewUrl(URL.createObjectURL(selectedThumb));
+      setFormErrors(prev => ({ ...prev, thumbnail: undefined }));
     }
-    setFile({
-      file: selectedFile,
-      name: selectedFile.name,
-      size: (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB'
-    });
-    setPreviewUrl(URL.createObjectURL(selectedFile));
-    simulateUpload(selectedFile.name);
-  }
-};;
+  };
+
 
   // Add tag helper
   const handleAddTag = (e) => {
@@ -186,6 +240,7 @@ export const Upload = () => {
     if (!title.trim()) errors.title = 'Document Title is required';
     if (!issuer.trim()) errors.issuer = 'Issuer Name is required';
     if (!issueDate) errors.issueDate = 'Issue Date is required';
+    if (!thumbnail) errors.thumbnail = 'Thumbnail image is required';
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -194,13 +249,17 @@ export const Upload = () => {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
+    if (isUploading) return; // Prevent duplicate submissions
 
-    // Dispatch to Zustand
     if (!file?.file) {
-        setFormErrors(prev => ({ ...prev, file: 'Document file is required' }));
-        return;
-      }
-      const formData = new FormData();
+      setFormErrors(prev => ({ ...prev, file: 'Document file is required' }));
+      return;
+    }
+
+    setIsUploading(true);
+    abortControllerRef.current = new AbortController();
+
+    const formData = new FormData();
       formData.append('title', title);
       formData.append('issuer', issuer);
       formData.append('category', category);
@@ -211,18 +270,27 @@ export const Upload = () => {
       formData.append('skills', JSON.stringify(skills.length > 0 ? skills : ['Credential']));
       formData.append('notes', notes || 'No custom notes provided.');
       formData.append('document', file.file);
+      if (thumbnail) {
+        formData.append('thumbnail', thumbnail.file);
+      }
       try {
-        const newCert = await createCertificate(formData);
+        const newCert = await createCertificate(formData, {
+          signal: abortControllerRef.current.signal
+        });
         addCertificate(newCert);
         // Success redirect
-        setIsUploading(true);
         setTimeout(() => {
           setIsUploading(false);
           navigate('/dashboard');
         }, 800);
       } catch (err) {
+        if (err.name === 'AbortError' || err.isAbort) {
+          console.log('Upload cancelled by user navigation.');
+          return;
+        }
         console.error('Upload failed:', err);
         setFormErrors(prev => ({ ...prev, submit: 'Upload failed. Check console.' }));
+        setIsUploading(false);
       }
   };
 
@@ -230,8 +298,16 @@ export const Upload = () => {
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
+    if (thumbnailPreviewUrl) {
+      URL.revokeObjectURL(thumbnailPreviewUrl);
+    }
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     setFile(null);
+    setThumbnail(null);
     setPreviewUrl(null);
+    setThumbnailPreviewUrl(null);
     setUploadProgress(0);
     setUploadComplete(false);
     setTitle('');
@@ -328,16 +404,64 @@ export const Upload = () => {
                     )}
                   </div>
 
-                  {/* Preview area */}
+                  {/* Professional Preview area */}
                   {previewUrl && (
-                    <div className="my-4" style={{ textAlign: 'center' }}>
-                      {file.file && file.file.type && file.file.type.startsWith('image/') ? (
-                        <img src={previewUrl} alt="preview" className="max-w-full max-h-64 object-contain mx-auto" />
+                    <div className="my-2 bg-surface/50 rounded-xl overflow-hidden flex flex-col items-center justify-center border border-border-color/60 transition-all">
+                      {isImageFile(file.type, file.name) ? (
+                        <img 
+                          src={previewUrl} 
+                          alt="preview" 
+                          loading="lazy"
+                          className="h-40 w-full object-cover rounded-xl border border-neutral-200 shadow-sm transition-opacity hover:opacity-95" 
+                        />
+                      ) : isPDFFile(file.type, file.name) ? (
+                        <div className="w-full h-40 bg-bg-secondary flex flex-col items-center justify-center p-6 border border-neutral-200 rounded-xl shadow-sm">
+                          <FileText size={36} className="text-neutral-400 mb-3" />
+                          <span className="text-xs font-semibold text-text-primary uppercase tracking-wider text-center">{file.name}</span>
+                          <span className="text-[10px] text-text-muted mt-1">{file.size} • PDF Document</span>
+                        </div>
                       ) : (
-                        <embed src={previewUrl} type="application/pdf" className="w-full h-64" />
+                        <div className="w-full h-40 bg-bg-secondary flex flex-col items-center justify-center p-6 border border-neutral-200 rounded-xl shadow-sm">
+                          {React.createElement(getFileIcon(file.name, file.type), { size: 36, className: 'text-neutral-400 mb-3' })}
+                          <span className="text-xs font-semibold text-text-primary uppercase tracking-wider text-center line-clamp-1">{file.name}</span>
+                          <span className="text-[10px] text-text-muted mt-1">{file.size} • {getFileCategory(file.name, file.type)}</span>
+                        </div>
                       )}
                     </div>
                   )}
+
+                  <div className="flex flex-col gap-3 pt-3 border-t border-border-color/60">
+                    <label className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                      Thumbnail Image
+                    </label>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] items-start">
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[11px] text-text-muted">
+                          Upload a cover thumbnail for this credential. Recommended size is 800×600 or similar aspect ratio.
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          onChange={handleThumbnailSelect}
+                          className="text-sm text-text-primary"
+                        />
+                        {formErrors.thumbnail && (
+                          <p className="text-[10px] text-red-500 mt-1">
+                            {formErrors.thumbnail}
+                          </p>
+                        )}
+                      </div>
+                      {thumbnailPreviewUrl && (
+                        <div className="h-24 w-full sm:w-40 rounded-xl overflow-hidden border border-border-color/70 bg-surface">
+                          <img
+                            src={thumbnailPreviewUrl}
+                            alt="Thumbnail preview"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   {isUploading && (
                     <div className="flex flex-col gap-2 py-2">
@@ -518,6 +642,7 @@ export const Upload = () => {
                   variant="primary"
                   icon={<ArrowRight size={14} />}
                   iconPosition="right"
+                  disabled={isUploading}
                 >
                   Save to Vault
                 </Button>
