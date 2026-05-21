@@ -89,6 +89,21 @@ export const useAuthStore = create((set) => {
       }
     },
 
+    // Update Profile Name
+    updateProfile: async (data) => {
+      set({ isLoading: true, error: null });
+      try {
+        const userId = pb.authStore.model?.id;
+        if (!userId) throw new Error('No authenticated user found.');
+        const record = await pb.collection('users').update(userId, data);
+        set({ user: record, isLoading: false });
+        return record;
+      } catch (err) {
+        set({ error: err.message, isLoading: false });
+        throw err;
+      }
+    },
+
     // Logout
     logout: () => {
       pb.authStore.clear();

@@ -9,7 +9,8 @@ import {
   Shield, 
   PlusCircle, 
   X,
-  FileBadge
+  FileBadge,
+  LogOut
 } from 'lucide-react';
 import { useCertStore } from '../../stores/useCertStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +19,15 @@ import { useAuthStore } from '../../stores/authStore';
 export const Sidebar = ({ isMobile = false, onClose }) => {
   const navigate = useNavigate();
   const { certificates, categoryFilter, setCategoryFilter } = useCertStore();
+  const { logout } = useAuthStore();
+
+  const handleSignOutClick = () => {
+    logout();
+    if (isMobile && onClose) {
+      onClose();
+    }
+    navigate('/login');
+  };
 
   // Get dynamic counts for sidebar badges
   const total = certificates.length;
@@ -164,7 +174,7 @@ export const Sidebar = ({ isMobile = false, onClose }) => {
           </div>
         </NavLink>
         
-        {/* User Card */}
+        {/* User Card & Sign Out */}
         {(() => {
           const user = useAuthStore.getState().user;
           const uName = user?.name || user?.username || 'Anirudh Dev';
@@ -172,18 +182,28 @@ export const Sidebar = ({ isMobile = false, onClose }) => {
           const initials = uName.split(' ').filter(Boolean).map(n => n[0]).slice(0, 2).join('').toUpperCase() || 'AN';
           
           return (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-border-color/40">
-              <div className="h-8 w-8 bg-neutral-900 rounded-full flex items-center justify-center text-xs font-bold text-surface border border-neutral-800">
-                {initials}
+            <div className="flex flex-col gap-3 mt-4 pt-4 border-t border-border-color/40">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 bg-neutral-900 rounded-full flex items-center justify-center text-xs font-bold text-surface border border-neutral-800">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-text-primary truncate">
+                    {uName}
+                  </p>
+                  <p className="text-[10px] text-text-muted truncate">
+                    {uEmail}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-text-primary truncate">
-                  {uName}
-                </p>
-                <p className="text-[10px] text-text-muted truncate">
-                  {uEmail}
-                </p>
-              </div>
+              
+              <button
+                onClick={handleSignOutClick}
+                className="w-full px-3 py-2 flex items-center gap-2.5 text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-primary hover:bg-surface-hover rounded-lg transition-all duration-200 border-none bg-transparent cursor-pointer text-left"
+              >
+                <LogOut size={16} />
+                <span>Sign Out</span>
+              </button>
             </div>
           );
         })()}

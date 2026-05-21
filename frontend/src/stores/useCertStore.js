@@ -1,28 +1,37 @@
 import { create } from 'zustand';
-import { 
-  getCertificates, 
-  createCertificate, 
-  updateCertificate as pbUpdateCertificate, 
-  deleteCertificate as pbDeleteCertificate 
+import {
+  getCertificates,
+  createCertificate,
+  updateCertificate as pbUpdateCertificate,
+  deleteCertificate as pbDeleteCertificate
 } from '../services/certificateService';
 
+// Safe JSON parser that always returns an array
+const safeParseArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+};
 
 export const useCertStore = create((set, get) => ({
   certificates: [],
   isLoading: false,
   error: null,
   selectedCertId: null,
-  categoryFilter: 'all',
+  categoryFilter: 'all', // 'all', 'Certifications', 'Awards', 'Internships', 'Licenses', 'Archived'
   searchQuery: '',
+  sortOrder: 'newest', // 'newest', 'oldest', 'title-asc', 'issuer-asc'
 
   // Actions
   fetchCertificates: async () => {
     set({ isLoading: true, error: null });
     try {
       let list = await getCertificates();
-      
-
-
       set({ certificates: list, isLoading: false });
     } catch (err) {
       console.error('Failed to sync certificates:', err);
@@ -31,17 +40,31 @@ export const useCertStore = create((set, get) => ({
   },
 
   addCertificate: async (certData) => {
-        // Directly add the already created certificate to the store
-        set((state) => ({
-          certificates: [certData, ...state.certificates],
-          isLoading: false
-        }));
-        return certData;
-      },
+    set((state) => ({
+      certificates: [certData, ...state.certificates],
+      isLoading: false
+    }));
+    return certData;
+  },
 
   updateCertificate: async (id, updatedFields) => {
     set({ isLoading: true, error: null });
     try {
+      // Handle _orig_cat tag consistency when category changes
+      const cert = get().certificates.find(c => c.id === id);
+      if (cert && updatedFields.category && updatedFields.category !== cert.category) {
+        const currentTags = safeParseArray(updatedFields.tags !== undefined ? updatedFields.tags : cert.tags);
+
+        if (updatedFields.category === 'Archive' && cert.category !== 'Archive') {
+          // Moving to Archive: save original category
+          const tagsWithoutOrigCat = currentTags.filter(t => !t.startsWith('_orig_cat:'));
+          updatedFields.tags = JSON.stringify([...tagsWithoutOrigCat, `_orig_cat:${cert.category}`]);
+        } else if (cert.category === 'Archive' && updatedFields.category !== 'Archive') {
+          // Moving out of Archive: remove _orig_cat tag
+          updatedFields.tags = JSON.stringify(currentTags.filter(t => !t.startsWith('_orig_cat:')));
+        }
+      }
+
       const updated = await pbUpdateCertificate(id, updatedFields);
       set((state) => ({
         certificates: state.certificates.map((cert) =>
@@ -71,8 +94,49 @@ export const useCertStore = create((set, get) => ({
     }
   },
 
+  toggleArchiveCertificate: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      const cert = get().certificates.find(c => c.id === id);
+      if (!cert) throw new Error('Certificate not found');
+      
+      const isCurrentlyArchived = cert.category === 'Archive';
+      let nextCategory = 'Archive';
+      let nextTags = safeParseArray(cert.tags);
+      
+      if (isCurrentlyArchived) {
+        // Restore: find original category in tags
+        const origCatTag = nextTags.find(t => t.startsWith('_orig_cat:'));
+        nextCategory = origCatTag ? origCatTag.split(':')[1] : 'Certifications';
+        nextTags = nextTags.filter(t => !t.startsWith('_orig_cat:'));
+      } else {
+        // Archive: save current category
+        nextTags = [...nextTags.filter(t => !t.startsWith('_orig_cat:')), `_orig_cat:${cert.category}`];
+        nextCategory = 'Archive';
+      }
+
+      const updated = await pbUpdateCertificate(id, { 
+        category: nextCategory,
+        tags: JSON.stringify(nextTags)
+      });
+      
+      set((state) => ({
+        certificates: state.certificates.map((c) =>
+          c.id === id ? updated : c
+        ),
+        isLoading: false
+      }));
+
+      return updated;
+    } catch (err) {
+      set({ error: err.message, isLoading: false });
+      throw err;
+    }
+  },
+
   setCategoryFilter: (category) => set({ categoryFilter: category }),
   setSearchQuery: (query) => set({ searchQuery: query }),
+  setSortOrder: (order) => set({ sortOrder: order }),
   setSelectedCertId: (id) => set({ selectedCertId: id }),
 
   // Helpers
@@ -89,64 +153,94 @@ export const useCertStore = create((set, get) => ({
   // Computed Stats Selector
   getStats: () => {
     const certs = get().certificates;
-    const total = certs.length;
-    
-    // Active = status 'active' and not archived category
-    const active = certs.filter(c => c.status === 'active' && c.category !== 'Archive').length;
-    
-    // Expiring Soon = active & has expiry date within next 3 months (90 days)
-    const expiringSoon = certs.filter(c => {
-      if (!c.expiryDate || c.status !== 'active') return false;
-      const today = new Date('2026-05-20');
-      const exp = new Date(c.expiryDate);
-      const diffTime = exp - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays > 0 && diffDays <= 90;
+    const activeCerts = certs.filter(c => c.category !== 'Archive');
+    const archivedCerts = certs.filter(c => c.category === 'Archive');
+
+    // Total unique active categories
+    const categories = new Set(activeCerts.map(c => c.category));
+
+    // Recent active uploads (created in last 30 days, or issueDate in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentCount = activeCerts.filter(c => {
+      const uploadDate = new Date(c.created || c.issueDate);
+      return uploadDate >= thirtyDaysAgo;
     }).length;
 
-    // Recent Uploads = uploaded within past month or very recent (created date after 2026-04-15)
-    const recent = certs.filter(c => {
-      const date = new Date(c.created || c.issueDate);
-      return date >= new Date('2026-04-15');
-    }).length;
+    // Newest credential
+    let newest = null;
+    if (activeCerts.length > 0) {
+      const sorted = [...activeCerts].sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate));
+      newest = sorted[0];
+    }
 
     return {
-      totalCertificates: total,
-      activeCredentials: active,
-      expiringSoon: expiringSoon,
-      recentUploads: recent
+      totalCertificates: certs.length,
+      activeCredentials: activeCerts.length,
+      categoriesCount: categories.size,
+      archivedCount: archivedCerts.length,
+      recentUploads: recentCount,
+      newestCredential: newest ? newest.title : 'None'
     };
   },
 
-  // Get filtered certificates list
+  // Get filtered & sorted certificates list
   getFilteredCertificates: () => {
-    const { certificates, categoryFilter, searchQuery } = get();
-    return certificates.filter((cert) => {
-      // Category filter
-      const matchesCategory =
-        categoryFilter === 'all' ||
-        cert.category === categoryFilter;
+    const { certificates, categoryFilter, searchQuery, sortOrder } = get();
+    
+    let filtered = certificates.filter((cert) => {
+      const isCertArchived = cert.category === 'Archive';
+      
+      // Determine archive status filter
+      if (categoryFilter === 'Archived') {
+        if (!isCertArchived) return false;
+      } else {
+        if (isCertArchived) return false;
+        
+        // Category filter
+        if (categoryFilter !== 'all' && cert.category !== categoryFilter) {
+          return false;
+        }
+      }
 
       // Search query filter
       const query = searchQuery.toLowerCase().trim();
-      
-      // Parse dynamic skills/tags array (supports raw tags or PB string arrays)
-      const tags = Array.isArray(cert.tags) 
-        ? cert.tags 
-        : JSON.parse(cert.tags || '[]');
-      const skills = Array.isArray(cert.skills) 
-        ? cert.skills 
-        : JSON.parse(cert.skills || '[]');
+      if (!query) return true;
 
-      const matchesSearch =
-        !query ||
+      // Extract skills / tags
+      const rawTags = safeParseArray(cert.tags);
+      const tags = rawTags.filter(t => !t.startsWith('_orig_cat:'));
+
+      const skills = safeParseArray(cert.skills);
+
+      return (
         cert.title.toLowerCase().includes(query) ||
         cert.issuer.toLowerCase().includes(query) ||
+        cert.category.toLowerCase().includes(query) ||
         (cert.credentialId && cert.credentialId.toLowerCase().includes(query)) ||
+        (cert.notes && cert.notes.toLowerCase().includes(query)) ||
         tags.some(tag => tag.toLowerCase().includes(query)) ||
-        skills.some(skill => skill.toLowerCase().includes(query));
-
-      return matchesCategory && matchesSearch;
+        skills.some(skill => skill.toLowerCase().includes(query))
+      );
     });
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      if (sortOrder === 'newest') {
+        return new Date(b.issueDate || b.created) - new Date(a.issueDate || a.created);
+      }
+      if (sortOrder === 'oldest') {
+        return new Date(a.issueDate || a.created) - new Date(b.issueDate || b.created);
+      }
+      if (sortOrder === 'title-asc') {
+        return a.title.localeCompare(b.title);
+      }
+      if (sortOrder === 'issuer-asc') {
+        return a.issuer.localeCompare(b.issuer);
+      }
+      return 0;
+    });
+
+    return filtered;
   }
 }));
