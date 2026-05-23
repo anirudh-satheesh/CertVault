@@ -6,20 +6,17 @@ import pb from '../lib/pocketbase';
  * @returns {Promise<Array>} List of certificate records.
  */
 export const getCertificates = async (options = {}) => {
-    try {
+  try {
     const list = await pb.collection('certificates').getFullList({
       sort: '-created',
       ...options
     });
-    // Debug: log fetched certificates summary in dev
-    if (import.meta.env.DEV) {
-      try { console.debug('getCertificates -> fetched count', list.length, list.slice(0,3).map(l=>({id:l.id, thumbnail:l.thumbnail, document:l.document}))); } catch(e){}
-    }
+
     return list;
-    } catch (error) {
-        console.error('Failed to fetch certificates:', error);
-        throw error;
-    }
+  } catch (error) {
+    console.error('Failed to fetch certificates:', error);
+    throw error;
+  }
 };
 
 /**
@@ -28,12 +25,12 @@ export const getCertificates = async (options = {}) => {
  * @returns {Promise<object>} Certificate record.
  */
 export const getCertificate = async (id) => {
-    try {
-        return await pb.collection('certificates').getOne(id);
-    } catch (error) {
-        console.error(`Failed to fetch certificate with ID ${id}:`, error);
-        throw error;
-    }
+  try {
+    return await pb.collection('certificates').getOne(id);
+  } catch (error) {
+    console.error(`Failed to fetch certificate with ID ${id}:`, error);
+    throw error;
+  }
 };
 
 /**
@@ -44,10 +41,10 @@ export const getCertificate = async (id) => {
  * @returns {Promise<object>} Created certificate record.
  */
 export const createCertificate = async (data, options = {}) => {
-  console.log('Creating certificate...', data);
   try {
     const owner = pb.authStore.model;
     let payload = data;
+
     if (data instanceof FormData) {
       if (owner && !data.has('owner')) {
         data.append('owner', owner.id);
@@ -58,6 +55,7 @@ export const createCertificate = async (data, options = {}) => {
         owner: owner ? owner.id : undefined
       };
     }
+
     return await pb.collection('certificates').create(payload, options);
   } catch (error) {
     console.error('Failed to create certificate:', error);
@@ -73,12 +71,12 @@ export const createCertificate = async (data, options = {}) => {
  * @returns {Promise<object>} Updated certificate record.
  */
 export const updateCertificate = async (id, data) => {
-    try {
-        return await pb.collection('certificates').update(id, data);
-    } catch (error) {
-        console.error(`Failed to update certificate with ID ${id}:`, error);
-        throw error;
-    }
+  try {
+    return await pb.collection('certificates').update(id, data);
+  } catch (error) {
+    console.error(`Failed to update certificate with ID ${id}:`, error);
+    throw error;
+  }
 };
 
 /**
@@ -87,10 +85,11 @@ export const updateCertificate = async (id, data) => {
  * @returns {Promise<boolean>} Deletion success.
  */
 export const deleteCertificate = async (id) => {
-    try {
-        return await pb.collection('certificates').delete(id);
-    } catch (error) {
-        console.error(`Failed to delete certificate with ID ${id}:`, error);
-        throw error;
-    }
+  try {
+    return await pb.collection('certificates').delete(id);
+  } catch (error) {
+    console.error(`Failed to delete certificate with ID ${id}:`, error);
+    throw error;
+  }
 };
+

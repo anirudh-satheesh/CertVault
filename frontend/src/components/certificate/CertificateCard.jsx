@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React from 'react';
+
 import { motion } from 'framer-motion';
 import { Eye, Edit3, Trash2, Calendar, ShieldCheck, Archive } from 'lucide-react';
 import { Badge } from '../common/Badge';
@@ -20,36 +21,24 @@ export const CertificateCard = ({
     category,
     credentialId,
     tags = [],
-    thumbnailColor = 'bg-neutral-900 text-neutral-100'
   } = certificate;
 
   const archived = category === 'Archive';
 
-  const documentUrl = useMemo(() => {
-    const docFile = certificate.document
-      ? Array.isArray(certificate.document)
-        ? certificate.document[0]
-        : certificate.document
-      : null;
-    return docFile ? getPBFileUrl(certificate, docFile) : null;
-  }, [certificate]);
+  const docFile = Array.isArray(certificate.document)
+    ? certificate.document[0]
+    : certificate.document;
+  const isPdf = docFile ? isPDFFile('', docFile) : false;
+  const isImage = docFile ? isImageFile('', docFile) : false;
+  const documentUrl = docFile ? getPBFileUrl(certificate, docFile) : null;
 
-  const docFile = certificate.document
-    ? Array.isArray(certificate.document)
-      ? certificate.document[0]
-      : certificate.document
-    : null;
-  const isPdf = docFile && isPDFFile('', docFile);
-  const isImage = docFile && isImageFile('', docFile);
   const parsedTags = (Array.isArray(tags)
     ? tags
     : JSON.parse(tags || '[]')).filter((t) => !t.startsWith('_orig_cat:'));
 
-  const thumbnailFile = certificate.thumbnail
-    ? Array.isArray(certificate.thumbnail)
-      ? certificate.thumbnail[0]
-      : certificate.thumbnail
-    : null;
+  const thumbnailFile = Array.isArray(certificate.thumbnail)
+    ? certificate.thumbnail[0]
+    : certificate.thumbnail;
   const thumbnailUrl = thumbnailFile ? getPBFileUrl(certificate, thumbnailFile) : null;
   const thumbnailSrc = thumbnailUrl || (isImage ? documentUrl : null);
 
@@ -61,12 +50,12 @@ export const CertificateCard = ({
       } rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between group transition-all duration-300 h-full text-left ${className}`}
     >
       <div className="flex-1 flex flex-col" onClick={onView}>
-        <div className="relative w-full aspect-[16/10] overflow-hidden bg-neutral-950">
+        <div className="relative w-full h-48 overflow-hidden bg-neutral-950 flex items-center justify-center">
           {thumbnailSrc ? (
             <img
               src={thumbnailSrc}
               alt={title}
-              className="w-full h-full object-cover object-top transition-transform duration-500 group-hover:scale-[1.03]"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             />
           ) : (
             <div className="w-full h-full bg-neutral-950 flex items-center justify-center px-6 text-center">
@@ -77,7 +66,6 @@ export const CertificateCard = ({
                 <p className="text-[11px] uppercase tracking-[0.24em] text-white/60">
                   Preview unavailable
                 </p>
-
               </div>
             </div>
           )}
