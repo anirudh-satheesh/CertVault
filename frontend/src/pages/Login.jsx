@@ -73,7 +73,7 @@ export const Login = () => {
       navigate('/dashboard');
     } catch (err) {
       // Store captures this automatically
-      console.log('Authentication action rejected:', err.message);
+
     }
   };
 
@@ -85,8 +85,8 @@ export const Login = () => {
       navigate('/dashboard');
     } catch (err) {
       // Store captures this automatically
-      console.log('Google Auth action rejected:', err.message);
     }
+
   };
 
   return (

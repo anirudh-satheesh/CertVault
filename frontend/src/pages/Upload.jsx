@@ -294,7 +294,6 @@ export const Upload = () => {
         }, 800);
       } catch (err) {
         if (err.name === 'AbortError' || err.isAbort) {
-          console.log('Upload cancelled by user navigation.');
           return;
         }
         console.error('Upload failed:', err);
