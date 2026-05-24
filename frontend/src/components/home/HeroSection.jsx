@@ -18,10 +18,12 @@ export const HeroSection = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Ensure smooth scroll for in-page anchors if any are added later.
-    // (No-op if already set elsewhere)
     if (typeof document !== 'undefined') {
+      const previousBehavior = document.documentElement.style.scrollBehavior;
       document.documentElement.style.scrollBehavior = 'smooth';
+      return () => {
+        document.documentElement.style.scrollBehavior = previousBehavior;
+      };
     }
   }, []);
 
