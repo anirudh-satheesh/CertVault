@@ -7,6 +7,8 @@ import { Upload } from './pages/Upload';
 import { CertificateDetails } from './pages/CertificateDetails';
 import { Settings } from './pages/Settings';
 import { useAuthStore } from './stores/authStore';
+import { Home } from './pages/Home';
+
 
 // Protected Route Guard
 const ProtectedRoute = () => {
@@ -14,17 +16,27 @@ const ProtectedRoute = () => {
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
+// Public Route Guard: keeps authenticated users out of /login
+const PublicRoute = () => {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
+};
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Login Page */}
-        <Route path="/login" element={<Login />} />
-        
+        {/* Public Landing (ALWAYS public) */}
+        <Route path="/" element={<Home />} />
+
+        {/* Public Login (guest-only) */}
+        <Route element={<PublicRoute />}>
+          <Route path="/login" element={<Login />} />
+        </Route>
+
         {/* Protected Dashboard Routes */}
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<DashboardLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="upload" element={<Upload />} />
             <Route path="certificate/:id" element={<CertificateDetails />} />
@@ -39,4 +51,6 @@ function App() {
   );
 }
 
+
 export default App;
+
