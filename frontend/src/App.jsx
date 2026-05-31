@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -8,21 +8,47 @@ import { CertificateDetails } from './pages/CertificateDetails';
 import { Settings } from './pages/Settings';
 import { useAuthStore } from './stores/authStore';
 import { Home } from './pages/Home';
-
+import { supabase } from './services/supabase';
 
 // Protected Route Guard
 const ProtectedRoute = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  if (isAuthenticated === null) return null;
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 // Public Route Guard: keeps authenticated users out of /login
 const PublicRoute = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  if (isAuthenticated === null) return null;
   return isAuthenticated ? <Navigate to="/dashboard" replace /> : <Outlet />;
 };
 
 function App() {
+  const setSession = useAuthStore((state) => state.setSession);
+  const signOutLocal = useAuthStore((state) => state.signOutLocal);
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (!session) signOutLocal();
+      }
+    );
+
+    return () => {
+      mounted = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, [setSession, signOutLocal]);
+
   return (
     <BrowserRouter>
       <Routes>
@@ -51,6 +77,6 @@ function App() {
   );
 }
 
-
 export default App;
+
 

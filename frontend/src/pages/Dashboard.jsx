@@ -69,10 +69,10 @@ export const Dashboard = () => {
   const stats = getStats();
   const filteredCerts = getFilteredCertificates();
 
-  // 1. Fetch real certificates from PocketBase on mount
-  useEffect(() => {
-    fetchCertificates();
-  }, [fetchCertificates]);
+  // 1. Fetch real certificates from backend on mount
+  // useEffect(() => {
+  //   fetchCertificates();
+  // }, [fetchCertificates]);
 
   // 2. Micro-animation skeleton loader on category tab switch
   useEffect(() => {
