@@ -3,7 +3,7 @@
 This is the React + Vite frontend client for the CertVault application.
 
 ## Quick Start
-Before running the frontend, make sure the PocketBase backend server is running in the background.
+Before running the frontend, make sure the backend server is running in the background.
 
 1. Navigate to the frontend directory:
    ```bash

@@ -2,8 +2,8 @@ import { create } from 'zustand';
 import {
   getCertificates,
   createCertificate,
-  updateCertificate as pbUpdateCertificate,
-  deleteCertificate as pbDeleteCertificate
+  updateCertificate,
+  deleteCertificate
 } from '../services/certificateService';
 
 // Safe JSON parser that always returns an array
@@ -65,7 +65,7 @@ export const useCertStore = create((set, get) => ({
         }
       }
 
-      const updated = await pbUpdateCertificate(id, updatedFields);
+      const updated = await updateCertificate(id, updatedFields);
       set((state) => ({
         certificates: state.certificates.map((cert) =>
           cert.id === id ? updated : cert
@@ -82,7 +82,7 @@ export const useCertStore = create((set, get) => ({
   deleteCertificate: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      await pbDeleteCertificate(id);
+      await deleteCertificate(id);
       set((state) => ({
         certificates: state.certificates.filter((cert) => cert.id !== id),
         selectedCertId: state.selectedCertId === id ? null : state.selectedCertId,
@@ -115,7 +115,7 @@ export const useCertStore = create((set, get) => ({
         nextCategory = 'Archive';
       }
 
-      const updated = await pbUpdateCertificate(id, { 
+      const updated = await updateCertificate(id, { 
         category: nextCategory,
         tags: JSON.stringify(nextTags)
       });

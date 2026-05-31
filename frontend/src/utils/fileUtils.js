@@ -8,8 +8,7 @@ import {
   FileVideo,
   FileAudio
 } from 'lucide-react';
-import pb from '../lib/pocketbase';
-
+import { supabase } from '../lib/supabase';
 /**
  * Extract the file extension from a filename.
  * @param {string} filename 
@@ -113,12 +112,50 @@ export const getFileCategory = (filename, mimeType = '') => {
 };
 
 /**
- * Helper to get preview URL for PocketBase file
- * @param {object} record PocketBase record
- * @param {string} filename The filename stored in PocketBase
+ * Helper to get preview URL for Supabase file
+ * @param {object} record Supabase record
+ * @param {string} filename The filename stored in Supabase
  * @returns {string}
  */
-export const getPBFileUrl = (record, filename) => {
-  if (!record || !filename) return null;
-  return pb.files.getURL(record, filename);
+
+export const getSupabaseFileUrl = (bucket, filePath) => {
+  if (!bucket || !filePath) return null;
+
+  const { data } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(filePath);
+
+  return data.publicUrl;
+};
+
+/**
+ * Compatibility helper: used by CertificateDetails.jsx.
+ * Generates a public URL for a certificate document stored in Supabase storage.
+ *
+ * Expected record shape (from existing code):
+ * - record.file_path or record.document_path holds the storage path
+ * - record.thumbnail_path might exist for thumbs (not used here)
+ *
+ * Fallback behavior:
+ * - If `filePath` argument looks like a full path, use it.
+ * - If it's a filename, try `${record.id}/${filePath}`.
+ */
+export const getPBFileUrl = (record, filePathOrName) => {
+  if (!record || !filePathOrName) return null;
+
+  // Determine storage bucket (commonly 'certificates'/'documents' etc.).
+  // If your project uses a different bucket, update this constant.
+  const bucket = 'certificates';
+
+  const directPath = record.file_path || record.document_path || record.path || null;
+
+  // If we already have a full path on the record, prefer it.
+  if (directPath) return getSupabaseFileUrl(bucket, directPath);
+
+  // Otherwise, build path from record.id.
+  const builtPath = filePathOrName.includes('/')
+    ? filePathOrName
+    : `${record.id}/${filePathOrName}`;
+
+  return getSupabaseFileUrl(bucket, builtPath);
 };

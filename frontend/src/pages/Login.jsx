@@ -1,54 +1,63 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, ShieldCheck, ArrowRight, User, Eye, EyeOff } from 'lucide-react';
+import {
+  Mail,
+  Lock,
+  ArrowRight,
+  User,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+
 import { Input } from '../components/common/Input';
 import { Button } from '../components/common/Button';
+
+import {
+  login,
+  signup,
+  signInWithGoogle
+} from '../services/supabaseAuth';
+
+import { supabase } from '../services/supabase';
+
+
 import { useAuthStore } from '../stores/authStore';
 
 export const Login = () => {
   const navigate = useNavigate();
 
-  // Mode toggler
+  // Mode
   const [isSignUp, setIsSignUp] = useState(false);
 
-  // Form Fields
+  // Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
 
-  // UI helpers
+  // UI
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Extract authentication actions & states from our global auth store
+  // Zustand
   const { 
-    login, 
-    signup, 
-    loginWithGoogle, 
-    isLoading, 
-    error: storeError, 
     clearError,
-    isAuthenticated 
+    error: storeError,
+    setSession
   } = useAuthStore();
 
-  // Combine store errors and local validation alerts
-  const displayError = localError || storeError;
 
-  // 1. Session Persistence redirect
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/dashboard');
-    }
-  }, [isAuthenticated, navigate]);
+  const displayError = localError || storeError;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setLocalError('');
     clearError();
 
-    // UI Validations
+    // Validation
     if (!email || !password) {
       setLocalError('Please fill in all mandatory fields.');
       return;
@@ -65,33 +74,62 @@ export const Login = () => {
     }
 
     try {
-      if (isSignUp) {
-        await signup(email, password, passwordConfirm, name);
-      } else {
-        await login(email, password);
-      }
-      navigate('/dashboard');
-    } catch (err) {
-      // Store captures this automatically
+      setIsSubmitting(true);
 
+      if (isSignUp) {
+        await signup(email, password);
+
+        setLocalError(
+          'Account created successfully. Please check your email and verify your account before logging in.'
+        );
+
+        setIsSignUp(false);
+
+        // After sign-up, Supabase may not have a session depending on email confirmation settings.
+        // Do not force-auth; App will restore any existing session.
+        return;
+      }
+
+
+      const user = await login(email, password);
+
+      // Persist Supabase session into Zustand
+      // signInWithPassword() stores session in supabase internally
+      const { data } = await supabase.auth.getSession();
+      setSession(data.session);
+
+      navigate('/dashboard');
+
+
+    } catch (err) {
+      console.error(err);
+
+      setLocalError(
+        err?.message || 'Authentication failed.'
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
     setLocalError('');
     clearError();
-    try {
-      await loginWithGoogle();
-      navigate('/dashboard');
-    } catch (err) {
-      // Store captures this automatically
-    }
 
+    try {
+      setIsSubmitting(true);
+      await signInWithGoogle();
+    } catch (err) {
+      console.error(err);
+      setLocalError(err?.message || 'Google authentication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="min-h-screen w-full bg-bg-primary flex items-center justify-center p-4 selection:bg-neutral-800 selection:text-white relative">
-      {/* Dynamic background light glowing points */}
+      {/* Background */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[20%] left-[10%] w-[400px] h-[400px] bg-neutral-200/50 rounded-full blur-[120px]" />
         <div className="absolute bottom-[20%] right-[10%] w-[300px] h-[300px] bg-neutral-300/40 rounded-full blur-[100px]" />
@@ -104,31 +142,35 @@ export const Login = () => {
         transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
         className="w-full max-w-[420px] bg-surface border border-border-color rounded-xl p-8 shadow-xl relative z-10 flex flex-col gap-6"
       >
-        {/* Branding Logo */}
+        {/* Branding */}
         <div className="flex flex-col items-center gap-2">
           <div className="h-10 w-10 bg-accent text-surface rounded-xl flex items-center justify-center font-bold text-base tracking-widest shadow-md">
             CV
           </div>
+
           <h1 className="text-sm font-bold uppercase tracking-widest text-text-primary mt-2">
             CertVault
           </h1>
+
           <p className="text-[11px] text-text-muted">
-            {isSignUp ? 'Register Security Credentials' : 'Professional Credential Workspace'}
+            {isSignUp
+              ? 'Register Security Credentials'
+              : 'Professional Credential Workspace'}
           </p>
         </div>
 
-        {/* Separator line */}
         <hr className="border-border-color/60" />
 
-        {/* Form Title & Intro */}
+        {/* Intro */}
         <div className="text-left">
           <h2 className="text-sm font-bold uppercase tracking-wider text-text-primary">
             {isSignUp ? 'Create an Account' : 'Sign In'}
           </h2>
+
           <p className="text-xs text-text-muted mt-1 leading-relaxed">
-            {isSignUp 
-              ? 'Establish your secure digital credentials vault and verify items instantly.' 
-              : 'Enter your authorization keys to decrypt your personal document vault.'}
+            {isSignUp
+              ? 'Establish your secure digital credentials vault.'
+              : 'Access your credential workspace securely.'}
           </p>
         </div>
 
@@ -148,7 +190,7 @@ export const Login = () => {
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Anirudh Dev"
+                  placeholder="e.g. Anirudh"
                   icon={<User size={16} />}
                 />
               </motion.div>
@@ -165,6 +207,7 @@ export const Login = () => {
             required
           />
 
+          {/* Password */}
           <div className="relative">
             <Input
               label="Password"
@@ -175,15 +218,21 @@ export const Login = () => {
               icon={<Lock size={16} />}
               required
             />
+
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3.5 top-[35px] text-text-muted hover:text-text-primary cursor-pointer transition-colors p-0.5 rounded"
+              className="absolute right-3.5 top-[35px] text-text-muted hover:text-text-primary transition-colors p-0.5 rounded"
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPassword ? (
+                <EyeOff size={16} />
+              ) : (
+                <Eye size={16} />
+              )}
             </button>
           </div>
 
+          {/* Confirm Password */}
           <AnimatePresence initial={false}>
             {isSignUp && (
               <motion.div
@@ -206,46 +255,61 @@ export const Login = () => {
             )}
           </AnimatePresence>
 
-          {/* Error Banner */}
+          {/* Errors */}
           {displayError && (
             <div className="bg-neutral-900/5 border border-neutral-900/15 rounded-lg p-3 text-left text-xs text-text-primary italic leading-relaxed">
               * {displayError}
             </div>
           )}
 
+          {/* Submit */}
           <Button
             type="submit"
-            isLoading={isLoading}
+            isLoading={isSubmitting}
             variant="primary"
             className="w-full py-2.5 mt-2"
             icon={<ArrowRight size={14} />}
             iconPosition="right"
           >
-            {isSignUp ? 'Create Vault Account' : 'Sign In to Workspace'}
+            {isSignUp
+              ? 'Create Vault Account'
+              : 'Sign In to Workspace'}
           </Button>
         </form>
 
+        {/* Divider */}
         <div className="relative flex py-1 items-center">
           <div className="flex-grow border-t border-border-color/60"></div>
-          <span className="flex-shrink mx-3 text-[10px] font-bold text-text-muted uppercase tracking-wider">or continue with</span>
+
+          <span className="flex-shrink mx-3 text-[10px] font-bold text-text-muted uppercase tracking-wider">
+            or continue with
+          </span>
+
           <div className="flex-grow border-t border-border-color/60"></div>
         </div>
 
-        {/* Google SSO Button */}
+        {/* Google */}
         <Button
           type="button"
           variant="secondary"
           className="w-full flex items-center justify-center gap-2"
+          isLoading={isSubmitting}
           onClick={handleGoogleSignIn}
-          isLoading={isLoading}
         >
-          <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.7 0 3.25.61 4.47 1.62l2.437-2.437C17.312 1.696 14.933 1 12.24 1 6.58 1 2 5.58 2 11.24s4.58 10.24 10.24 10.24c5.795 0 10.254-4.074 10.254-10.24 0-.595-.06-1.17-.16-1.728H12.24z"/>
+          <svg
+            className="h-4 w-4 shrink-0"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.7 0 3.25.61 4.47 1.62l2.437-2.437C17.312 1.696 14.933 1 12.24 1 6.58 1 2 5.58 2 11.24s4.58 10.24 10.24 10.24c5.795 0 10.254-4.074 10.254-10.24 0-.595-.06-1.17-.16-1.728H12.24z" />
           </svg>
-          <span className="text-xs uppercase tracking-wider font-semibold">Google Account</span>
+
+          <span className="text-xs uppercase tracking-wider font-semibold">
+            Google Account
+          </span>
         </Button>
 
-        {/* Toggler */}
+        {/* Toggle */}
         <div className="text-center text-xs text-text-muted pt-2 border-t border-border-color/60">
           {isSignUp ? (
             <span>
@@ -257,14 +321,14 @@ export const Login = () => {
                   setLocalError('');
                   clearError();
                 }}
-                className="font-semibold text-text-primary hover:underline cursor-pointer bg-transparent border-none"
+                className="font-semibold text-text-primary hover:underline bg-transparent border-none"
               >
                 Sign In
               </button>
             </span>
           ) : (
             <span>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -272,7 +336,7 @@ export const Login = () => {
                   setLocalError('');
                   clearError();
                 }}
-                className="font-semibold text-text-primary hover:underline cursor-pointer bg-transparent border-none"
+                className="font-semibold text-text-primary hover:underline bg-transparent border-none"
               >
                 Create one now
               </button>

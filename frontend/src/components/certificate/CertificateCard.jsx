@@ -1,9 +1,9 @@
-import React from 'react';
-
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, Edit3, Trash2, Calendar, ShieldCheck, Archive } from 'lucide-react';
 import { Badge } from '../common/Badge';
-import { isImageFile, isPDFFile, getPBFileUrl } from '../../utils/fileUtils';
+import { isImageFile, isPDFFile } from '../../utils/fileUtils';
+import { getSignedUrl } from '../../services/storageService';
 
 export const CertificateCard = ({
   certificate,
@@ -14,6 +14,7 @@ export const CertificateCard = ({
   onTagClick,
   className = ''
 }) => {
+
   const {
     title,
     issuer,
@@ -28,18 +29,45 @@ export const CertificateCard = ({
   const docFile = Array.isArray(certificate.document)
     ? certificate.document[0]
     : certificate.document;
-  const isPdf = docFile ? isPDFFile('', docFile) : false;
-  const isImage = docFile ? isImageFile('', docFile) : false;
-  const documentUrl = docFile ? getPBFileUrl(certificate, docFile) : null;
-
-  const parsedTags = (Array.isArray(tags)
-    ? tags
-    : JSON.parse(tags || '[]')).filter((t) => !t.startsWith('_orig_cat:'));
 
   const thumbnailFile = Array.isArray(certificate.thumbnail)
     ? certificate.thumbnail[0]
     : certificate.thumbnail;
-  const thumbnailUrl = thumbnailFile ? getPBFileUrl(certificate, thumbnailFile) : null;
+
+  const [thumbnailUrl, setThumbnailUrl] = useState(null);
+  const [documentUrl, setDocumentUrl] = useState(null);
+
+  const parsedTags = (Array.isArray(tags)
+    ? tags
+    : JSON.parse(tags || '[]')
+  ).filter((t) => !t.startsWith('_orig_cat:'));
+
+  // 🔐 Load signed URLs (PRIVATE BUCKET SAFE)
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFiles = async () => {
+      if (thumbnailFile) {
+        const url = await getSignedUrl(thumbnailFile);
+        if (mounted) setThumbnailUrl(url);
+      }
+
+      if (docFile) {
+        const url = await getSignedUrl(docFile);
+        if (mounted) setDocumentUrl(url);
+      }
+    };
+
+    loadFiles();
+
+    return () => {
+      mounted = false;
+    };
+  }, [thumbnailFile, docFile]);
+
+  const isPdf = docFile ? isPDFFile('', docFile) : false;
+  const isImage = docFile ? isImageFile('', docFile) : false;
+
   const thumbnailSrc = thumbnailUrl || (isImage ? documentUrl : null);
 
   return (
@@ -50,7 +78,10 @@ export const CertificateCard = ({
       } rounded-3xl overflow-hidden shadow-sm flex flex-col justify-between group transition-all duration-300 h-full text-left ${className}`}
     >
       <div className="flex-1 flex flex-col" onClick={onView}>
+
+        {/* IMAGE AREA */}
         <div className="relative w-full h-48 overflow-hidden bg-neutral-950 flex items-center justify-center">
+
           {thumbnailSrc ? (
             <img
               src={thumbnailSrc}
@@ -73,6 +104,7 @@ export const CertificateCard = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
           <div className="absolute inset-x-0 bottom-0 p-5 space-y-3 text-white z-10">
+
             <div className="flex items-center justify-between gap-3">
               <Badge
                 variant="outline"
@@ -81,6 +113,7 @@ export const CertificateCard = ({
               >
                 {category}
               </Badge>
+
               {archived ? (
                 <Badge variant="secondary" size="sm" className="bg-white/10 text-white text-[8px] tracking-widest font-bold">
                   ARCHIVED
@@ -112,24 +145,30 @@ export const CertificateCard = ({
                   #{tag}
                 </button>
               ))}
+
               {credentialId && (
                 <span className="text-[10px] font-mono text-white/60 tracking-[0.18em]">
                   {credentialId}
                 </span>
               )}
             </div>
+
           </div>
         </div>
 
+        {/* META */}
         <div className="px-5 pt-5 pb-4 flex flex-col gap-3">
           <div className="flex items-center gap-2 text-[11px] text-text-muted font-medium">
             <Calendar size={12} />
             <span>Issued {issueDate}</span>
           </div>
         </div>
+
       </div>
 
+      {/* ACTIONS */}
       <div className="px-5 py-3 border-t border-border-color/40 bg-bg-primary/20 flex items-center justify-between gap-3 group-hover:bg-bg-primary/30 transition-colors duration-300">
+
         <button
           onClick={onView}
           className="text-text-muted hover:text-text-primary flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors"
@@ -139,37 +178,17 @@ export const CertificateCard = ({
         </button>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onArchive();
-            }}
-            title={archived ? 'Restore Document' : 'Archive Document'}
-            className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-bg-secondary transition-all"
-          >
-            <Archive size={14} className={archived ? 'text-neutral-950 fill-neutral-950/10' : ''} />
+          <button onClick={(e) => { e.stopPropagation(); onArchive(); }}>
+            <Archive size={14} />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            title="Edit Details"
-            className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-bg-secondary transition-all"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onEdit(); }}>
             <Edit3 size={14} />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title="Delete Document"
-            className="p-2 rounded-xl text-text-muted hover:text-neutral-950 hover:bg-neutral-200 transition-all"
-          >
+          <button onClick={(e) => { e.stopPropagation(); onDelete(); }}>
             <Trash2 size={14} />
           </button>
         </div>
+
       </div>
     </motion.div>
   );
